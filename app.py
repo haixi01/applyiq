@@ -90,193 +90,208 @@ def run_flow(resume_text: str, job_text: str) -> str:
     return _extract_text(resp.json())
 
 
-def main():
-    st.set_page_config(page_title="ApplyIQ", page_icon="\U0001f3af", layout="centered")
+# ── Theme palettes ─────────────────────────────────────────────────────────────
+DARK = dict(
+    bg="#0B0B0C", surface="#141418", border="#2A2A2E",
+    text_primary="#F5F5F5", text_secondary="#C9C9CE", text_muted="#9A9AA3",
+    input_bg="#141418", placeholder="#5A5A65",
+    gold="#C9A44C", gold_hover="#A67B23",
+    btn_text="#0B0B0C",
+    btn_disabled_bg="#1E1E22", btn_disabled_text="#5A5A65",
+    tag_bg="#0B0B0C", tag_border="#2A2A2E", tag_text="#9A9AA3",
+    toggle_icon="☀️",
+    # ghost button for dark mode — no gold
+    toggle_bg="transparent", toggle_bg_hover="#1E1E22",
+    toggle_border="#2A2A2E", toggle_color="#9A9AA3",
+)
+LIGHT = dict(
+    bg="#FAF8F3", surface="#FFFFFF", border="#E6DDCC",
+    text_primary="#1E1A14", text_secondary="#5E5548", text_muted="#8A7E6B",
+    input_bg="#FFFDF9", placeholder="#B5A898",
+    gold="#B88A2A", gold_hover="#8E6A1F",
+    btn_text="#FFFFFF",
+    btn_disabled_bg="#EDE8DF", btn_disabled_text="#B5A898",
+    tag_bg="#FFFDF9", tag_border="#E6DDCC", tag_text="#8A7E6B",
+    toggle_icon="🌙",
+    # gold button for light mode
+    toggle_bg="#B88A2A", toggle_bg_hover="#8E6A1F",
+    toggle_border="#B88A2A", toggle_color="#FFFFFF",
+)
 
-    # ── Global styles ──────────────────────────────────────────────────────────
-    st.markdown("""
+
+def inject_theme(t: dict) -> None:
+    st.markdown(f"""
     <style>
-    /* Hide Streamlit default chrome */
-    #MainMenu, footer, header { visibility: hidden; }
+    /* ── Kill chrome with display:none — visibility:hidden leaves height ── */
+    #MainMenu, footer, header,
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stSidebar"],
+    [data-testid="collapsedControl"] {{
+        display: none !important;
+    }}
 
-    /* Page background */
-    .stApp { background-color: #0f1117; }
+    /* ── Page background ── */
+    html, body, .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"] {{
+        background-color: {t['bg']} !important;
+    }}
+    .block-container {{
+        max-width: 860px !important;
+        padding-top: 2rem !important;
+        padding-bottom: 3rem !important;
+        padding-left: 2.5rem !important;
+        padding-right: 2.5rem !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }}
 
-    /* Widen the centered layout and reduce top padding */
-    .block-container {
-        max-width: 900px !important;
-        padding-top: 1.5rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }
+    /* ── Steps ── */
+    .steps {{
+        display: flex; align-items: center;
+        margin: 0.5rem 0 1.6rem 0;
+        font-size: 0.82rem; color: {t['text_secondary']};
+    }}
+    .step {{ display: flex; align-items: center; gap: 0.4rem; }}
+    .step-num {{
+        background: {t['surface']}; color: {t['text_secondary']};
+        border: 1px solid {t['border']};
+        border-radius: 50%; width: 20px; height: 20px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.72rem; font-weight: 600; flex-shrink: 0;
+    }}
+    .step-arrow {{ margin: 0 0.6rem; color: {t['border']}; }}
 
-    /* Main card — more contrast/elevation */
-    .main-card {
-        background: #1c1f2e;
-        border: 1px solid #363a56;
-        border-radius: 16px;
-        padding: 2.2rem 2.5rem 2rem 2.5rem;
-        margin: 0 auto;
-        box-shadow: 0 4px 32px rgba(0,0,0,0.35);
-    }
+    /* ── Labels ── */
+    .input-label {{
+        font-size: 0.72rem; font-weight: 600;
+        letter-spacing: 0.09em; text-transform: uppercase;
+        color: {t['text_muted']}; margin-bottom: 0.4rem;
+    }}
 
-    /* Steps bar */
-    .steps {
-        display: flex;
-        gap: 0;
-        margin: 1rem 0 1.8rem 0;
-        font-size: 0.82rem;
-        color: #b0b8d0;
-    }
-    .step {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-    }
-    .step-num {
-        background: #363a56;
-        color: #d4d8f0;
-        border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.72rem;
-        font-weight: 600;
-        flex-shrink: 0;
-    }
-    .step-arrow {
-        margin: 0 0.6rem;
-        color: #4a5068;
-    }
-
-    /* Section labels */
-    .input-label {
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #b0b8d0;
-        margin-bottom: 0.5rem;
-    }
-
-    /* Textarea polish */
-    .stTextArea textarea {
-        border: 1px solid #3a3f5c !important;
+    /* ── Textareas ── */
+    .stTextArea textarea {{
+        background: {t['input_bg']} !important;
+        border: 1px solid {t['border']} !important;
         border-radius: 10px !important;
-        background: #14172030 !important;
-    }
-    .stTextArea textarea:focus {
-        border-color: #6366f1 !important;
-        box-shadow: 0 0 0 2px rgba(99,102,241,0.15) !important;
-    }
+        color: {t['text_primary']} !important;
+        font-size: 0.9rem !important;
+    }}
+    .stTextArea textarea::placeholder {{ color: {t['placeholder']} !important; }}
+    .stTextArea textarea:focus {{
+        border-color: {t['gold']} !important;
+        box-shadow: 0 0 0 2px rgba(201,164,76,0.15) !important;
+    }}
 
-    /* CTA button */
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+    /* ── Checkbox ── */
+    .stCheckbox label p {{ color: {t['text_muted']} !important; font-size: 0.85rem !important; }}
+
+    /* ── Primary CTA — gold, full width ── */
+    div[data-testid="stButton"] > button[kind="primary"] {{
+        background: {t['gold']} !important;
+        color: {t['btn_text']} !important;
         border: none !important;
         border-radius: 10px !important;
-        padding: 0.75rem 1.5rem !important;
+        padding: 0.7rem 1.5rem !important;
         font-size: 1rem !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.01em !important;
-        transition: opacity 0.15s !important;
-    }
-    .stButton > button[kind="primary"]:hover { opacity: 0.88 !important; }
-    .stButton > button[kind="primary"]:disabled {
-        background: linear-gradient(135deg, #3d3f6e 0%, #2e3060 100%) !important;
-        color: #8b8fb8 !important;
+        font-weight: 700 !important;
+        width: 100% !important;
+    }}
+    div[data-testid="stButton"] > button[kind="primary"]:hover:not(:disabled) {{
+        background: {t['gold_hover']} !important;
+    }}
+    div[data-testid="stButton"] > button[kind="primary"]:disabled {{
+        background: {t['btn_disabled_bg']} !important;
+        color: {t['btn_disabled_text']} !important;
+        border: 1px solid {t['border']} !important;
         opacity: 1 !important;
-        cursor: not-allowed !important;
-    }
+    }}
 
-    /* Result preview placeholder — product-like list */
-    .result-placeholder {
-        border: 1px dashed #363a56;
-        border-radius: 10px;
-        padding: 1.1rem 2rem;
-        margin-top: 1.5rem;
-        display: flex;
-        align-items: center;
-        gap: 2rem;
-    }
-    .rp-label {
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.07em;
-        text-transform: uppercase;
-        color: #6b7280;
-        white-space: nowrap;
-    }
-    .rp-tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-    .rp-tag {
-        background: #1e2238;
-        border: 1px solid #2e3147;
-        border-radius: 6px;
-        padding: 0.25rem 0.65rem;
-        font-size: 0.75rem;
-        color: #6b7280;
-    }
+    /* ── Secondary/toggle — ghost, auto width ── */
+    div[data-testid="stButton"] > button[kind="secondary"] {{
+        background: {t['toggle_bg']} !important;
+        color: {t['toggle_color']} !important;
+        border: 1px solid {t['toggle_border']} !important;
+        border-radius: 8px !important;
+        padding: 0.25rem 0.6rem !important;
+        font-size: 1rem !important;
+        font-weight: 400 !important;
+        width: auto !important;
+        min-width: unset !important;
+        float: right !important;
+    }}
+    div[data-testid="stButton"] > button[kind="secondary"]:hover {{
+        background: {t['toggle_bg_hover']} !important;
+    }}
 
-    /* Status pill — smaller, less dominant */
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        background: transparent;
-        border: 1px solid #2a2d40;
-        border-radius: 999px;
-        padding: 0.18rem 0.6rem;
-        font-size: 0.7rem;
-        color: #6b7280;
-        margin-bottom: 1.2rem;
-    }
-    .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+    /* ── Status pill ── */
+    .status-pill {{
+        display: inline-flex; align-items: center; gap: 0.3rem;
+        border: 1px solid {t['border']}; border-radius: 999px;
+        padding: 0.16rem 0.55rem; font-size: 0.68rem; color: {t['text_muted']};
+    }}
+    .pill-dot {{ width: 6px; height: 6px; border-radius: 50%; }}
 
-    /* Sidebar hidden by default on load */
-    [data-testid="stSidebar"] { display: none; }
+    /* ── Result placeholder ── */
+    .result-placeholder {{
+        border: 1px dashed {t['border']}; border-radius: 10px;
+        padding: 1rem 1.75rem; margin-top: 1.5rem;
+        display: flex; align-items: center; gap: 1.5rem;
+    }}
+    .rp-label {{
+        font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em;
+        text-transform: uppercase; color: {t['text_muted']}; white-space: nowrap;
+    }}
+    .rp-tags {{ display: flex; flex-wrap: wrap; gap: 0.4rem; }}
+    .rp-tag {{
+        background: {t['tag_bg']}; border: 1px solid {t['tag_border']};
+        border-radius: 6px; padding: 0.2rem 0.55rem;
+        font-size: 0.72rem; color: {t['tag_text']};
+    }}
+
+    /* ── Divider ── */
+    hr {{ border-color: {t['border']} !important; }}
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Hidden sidebar (connection debug) ─────────────────────────────────────
-    with st.sidebar:
-        st.caption("Connection debug")
-        st.code(LANGFLOW_BASE_URL, language=None)
-        _, auth_label = _get_session()
-        if auth_label == "none":
-            st.warning(f"Auth: {auth_label}")
-        else:
-            st.success(f"Auth: {auth_label}")
 
-    # ── Status pill ───────────────────────────────────────────────────────────
+def main():
+    st.set_page_config(page_title="ApplyIQ", page_icon="\U0001f3af", layout="centered")
+
+    if "dark_mode" not in st.session_state:
+        st.session_state.dark_mode = True
+
+    t = DARK if st.session_state.dark_mode else LIGHT
+    inject_theme(t)
+
     _, auth_label = _get_session()
-    dot_color = "#22c55e" if auth_label != "none" else "#ef4444"
+    dot_color = "#3FAE6A" if auth_label != "none" else "#D45C5C"
     pill_text = "Connected" if auth_label != "none" else "Offline"
-    st.markdown(
-        f'<div class="status-pill">'
-        f'<span class="pill-dot" style="background:{dot_color}"></span>'
-        f'{pill_text}'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
 
-    # ── Header ────────────────────────────────────────────────────────────────
-    st.markdown("# ApplyIQ")
-    st.markdown(
-        "<p style='color:#b0b8d0;font-size:1.05rem;margin-top:-0.4rem;margin-bottom:1.2rem;'>"
-        "Analyzes your fit, researches the company, and generates tailored application materials."
-        "</p>",
-        unsafe_allow_html=True,
-    )
+    # ── Top bar ───────────────────────────────────────────────────────────────
+    pill_col, toggle_col = st.columns([8, 1])
+    with pill_col:
+        st.markdown(
+            f'<div style="padding-top:0.15rem;">'
+            f'<span class="status-pill">'
+            f'<span class="pill-dot" style="background:{dot_color}"></span>'
+            f'{pill_text}</span></div>',
+            unsafe_allow_html=True,
+        )
+    with toggle_col:
+        if st.button(t["toggle_icon"], key="theme_toggle"):
+            st.session_state.dark_mode = not st.session_state.dark_mode
+            st.rerun()
 
-    # ── 3-step workflow cue ───────────────────────────────────────────────────
-    st.markdown('<div class="main-card">', unsafe_allow_html=True)
-    st.markdown("""
+    # ── Header + steps ────────────────────────────────────────────────────────
+    st.markdown(f"""
+    <h1 style="margin-bottom:0.2rem;color:{t['text_primary']};">ApplyIQ</h1>
+    <p style="color:{t['text_secondary']};font-size:1rem;margin-top:0;margin-bottom:1.2rem;">
+        Analyzes your fit, researches the company, and generates tailored application materials.
+    </p>
     <div class="steps">
         <div class="step"><span class="step-num">1</span> Add materials</div>
         <span class="step-arrow">›</span>
@@ -337,7 +352,19 @@ def main():
                 label_visibility="collapsed", key="job_text"
             )
 
-    st.markdown("<div style='margin-top:0.5rem'></div>", unsafe_allow_html=True)
+    # ── Amber hint ────────────────────────────────────────────────────────────
+    if resume_text.strip() and not job_text.strip():
+        st.markdown(
+            "<p style='font-size:0.78rem;color:#C98A1A;margin:0.3rem 0;'>"
+            "⚠ Add a job description to continue.</p>",
+            unsafe_allow_html=True,
+        )
+    elif job_text.strip() and not resume_text.strip():
+        st.markdown(
+            "<p style='font-size:0.78rem;color:#C98A1A;margin:0.3rem 0;'>"
+            "⚠ Add your resume to continue.</p>",
+            unsafe_allow_html=True,
+        )
 
     # ── CTA ───────────────────────────────────────────────────────────────────
     run_disabled = not (resume_text.strip() and job_text.strip())
@@ -366,14 +393,15 @@ def main():
         st.divider()
         st.subheader("Your Application Package")
         st.markdown(
-            "<p style='color:#6b7280;font-size:0.85rem;margin-top:-0.5rem;margin-bottom:1rem;'>"
+            f"<p style='color:{t['text_muted']};font-size:0.85rem;"
+            "margin-top:-0.5rem;margin-bottom:1rem;'>"
             "Match summary · Resume bullets · Company insights · Application-ready content"
             "</p>",
             unsafe_allow_html=True,
         )
         st.markdown(st.session_state["result"])
         st.download_button(
-            "Download as text",
+            "⬇ Download package",
             st.session_state["result"],
             "applyiq_application_package.txt",
             "text/plain",
@@ -390,8 +418,6 @@ def main():
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)  # close .main-card
 
 
 if __name__ == "__main__":
