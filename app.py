@@ -4,6 +4,7 @@ Standalone GUI that connects to a Langflow backend.
 """
 
 import os
+import io
 import json
 import requests
 import streamlit as st
@@ -14,10 +15,21 @@ try:
 except ImportError:
     pass
 
-LANGFLOW_BASE_URL = os.getenv("LANGFLOW_BASE_URL", "http://127.0.0.1:7860")
+LANGFLOW_BASE_URL = os.getenv("LANGFLOW_BASE_URL", "http://127.0.0.1:7861")
 FLOW_ID = os.getenv("LANGFLOW_FLOW_ID", "9dd9a257-0e88-4397-bd19-1a9b51f1f23d")
 RESUME_NODE_ID = "TextInput-t7Cut"
 JOB_NODE_ID = "TextInput-UGDxh"
+
+
+def _pdf_to_text(file_bytes: bytes) -> str:
+    import pdfplumber
+    parts = []
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for page in pdf.pages:
+            t = page.extract_text()
+            if t:
+                parts.append(t)
+    return "\n\n".join(parts)
 
 
 def _get_session():
@@ -45,25 +57,20 @@ def _get_session():
 
 
 def _extract_text(data: dict) -> str:
-    """Navigate the known Langflow response structure to get the output text."""
     try:
         for output_group in data["outputs"]:
             for out in output_group.get("outputs", []):
-                results = out.get("results", {})
-                for val in results.values():
+                for val in out.get("results", {}).values():
                     if not isinstance(val, dict):
                         continue
-                    # Path 1: results -> message -> data -> text
                     t = val.get("data", {}).get("text", "")
                     if isinstance(t, str) and len(t) > 30:
                         return t
-                    # Path 2: results -> message -> text
                     t = val.get("text", "")
                     if isinstance(t, str) and len(t) > 30:
                         return t
     except Exception:
         pass
-    # Last resort: return raw JSON so at least something shows
     return json.dumps(data, indent=2)
 
 
@@ -84,14 +91,9 @@ def run_flow(resume_text: str, job_text: str) -> str:
 
 
 def main():
-    st.set_page_config(page_title="ApplyIQ", page_icon="🎯", layout="wide")
-
+    st.set_page_config(page_title="ApplyIQ", page_icon="\U0001f3af", layout="wide")
     st.markdown(
-        """
-        <style>
-        .block-container { max-width: 1100px; padding-top: 2rem; }
-        </style>
-        """,
+        "<style>.block-container{max-width:1100px;padding-top:2rem;}</style>",
         unsafe_allow_html=True,
     )
 
@@ -106,30 +108,42 @@ def main():
 
     st.title("ApplyIQ")
     st.markdown(
-        "Paste your resume and a job description. "
-        "ApplyIQ will parse both, research the company, "
-        "and generate a tailored application package."
+        "Paste your resume and job description, or upload PDFs. "
+        "ApplyIQ will research the company and generate a tailored application package."
     )
 
     col_resume, col_job = st.columns(2, gap="large")
+
     with col_resume:
         st.subheader("Resume")
-        resume_text = st.text_area(
-            "Resume", height=320,
-            placeholder="Paste your full resume here",
-            label_visibility="collapsed",
-        )
+        use_pdf_r = st.checkbox("Upload PDF instead", key="use_pdf_resume")
+        if use_pdf_r:
+            uploaded_r = st.file_uploader("Resume PDF", type=["pdf"], key="resume_pdf", label_visibility="collapsed")
+            if uploaded_r:
+                resume_text = _pdf_to_text(uploaded_r.read())
+                st.success(f"Extracted {len(resume_text):,} chars from {uploaded_r.name}")
+                resume_text = st.text_area("Edit extracted text", value=resume_text, height=250, key="resume_extracted")
+            else:
+                resume_text = ""
+        else:
+            resume_text = st.text_area("Resume", height=300, placeholder="Paste your full resume here", label_visibility="collapsed", key="resume_text")
+
     with col_job:
         st.subheader("Job Description")
-        job_text = st.text_area(
-            "Job Description", height=320,
-            placeholder="Paste the full job posting here",
-            label_visibility="collapsed",
-        )
+        use_pdf_j = st.checkbox("Upload PDF instead", key="use_pdf_job")
+        if use_pdf_j:
+            uploaded_j = st.file_uploader("Job Description PDF", type=["pdf"], key="job_pdf", label_visibility="collapsed")
+            if uploaded_j:
+                job_text = _pdf_to_text(uploaded_j.read())
+                st.success(f"Extracted {len(job_text):,} chars from {uploaded_j.name}")
+                job_text = st.text_area("Edit extracted text", value=job_text, height=250, key="job_extracted")
+            else:
+                job_text = ""
+        else:
+            job_text = st.text_area("Job Description", height=300, placeholder="Paste the full job posting here", label_visibility="collapsed", key="job_text")
 
     run_disabled = not (resume_text.strip() and job_text.strip())
-    if st.button("Generate Application Package", type="primary",
-                 disabled=run_disabled, use_container_width=True):
+    if st.button("Generate Application Package", type="primary", disabled=run_disabled, use_container_width=True):
         with st.spinner("Running ApplyIQ pipeline — parsing, researching, tailoring..."):
             try:
                 result = run_flow(resume_text, job_text)
@@ -148,12 +162,7 @@ def main():
         st.divider()
         st.subheader("Application Package")
         st.markdown(st.session_state["result"])
-        st.download_button(
-            label="Download as text",
-            data=st.session_state["result"],
-            file_name="applyiq_application_package.txt",
-            mime="text/plain",
-        )
+        st.download_button("Download as text", st.session_state["result"], "applyiq_application_package.txt", "text/plain")
 
 
 if __name__ == "__main__":
