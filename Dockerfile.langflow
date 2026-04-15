@@ -1,0 +1,19 @@
+# ── Langflow image with ApplyIQ flow baked in ─────────────────────────────────
+FROM langflowai/langflow:latest
+
+USER root
+
+RUN mkdir -p /app/flows
+COPY langflow_flow.json /app/flows/applyiq.json
+COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+
+ENV LANGFLOW_AUTO_LOGIN=true
+ENV LANGFLOW_SKIP_AUTH_AUTO_LOGIN=true
+ENV LANGFLOW_LOAD_FLOWS_PATH=/app/flows
+ENV LANGFLOW_HOST=0.0.0.0
+ENV LANGFLOW_PORT=7860
+ENV LANGFLOW_DO_NOT_TRACK=true
+
+EXPOSE 7860
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

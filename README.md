@@ -18,7 +18,9 @@ Streamlit GUI (app.py)          Langflow Pipeline (15 nodes)
 
 Three parallel branches (resume parsing, job parsing, company enrichment) merge into a final Match & Tailor stage that produces the application package.
 
-## Setup
+---
+
+## Local Setup
 
 **Prerequisites:** Python 3.10+, [Langflow](https://docs.langflow.org/) v1.5+, a Google Gemini API key.
 
@@ -31,7 +33,7 @@ LANGFLOW_AUTO_LOGIN=true LANGFLOW_SKIP_AUTH_AUTO_LOGIN=true langflow run
 Then open the Langflow UI (default `http://localhost:7861`):
 - **Import** `langflow_flow.json` (drag and drop onto the home page)
 - Go to **Settings → Global Variables → Add New**, name it `GOOGLE_API_KEY`, paste your Gemini key
-- Open the flow and note the **flow ID** from the URL bar
+- Note the **flow ID** from the URL bar
 
 ### 2. Run the Streamlit app
 
@@ -40,7 +42,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` with your values:
+Edit `.env`:
 ```properties
 LANGFLOW_BASE_URL=http://127.0.0.1:7861
 LANGFLOW_FLOW_ID=<your-flow-id>
@@ -52,13 +54,77 @@ LANGFLOW_PASSWORD=langflow
 streamlit run app.py
 ```
 
-Open `http://localhost:8501`, paste a resume and job description, and click **Generate Application Package**.
+Open `http://localhost:8501`, paste a resume and job description, click **Generate Application Package**.
+
+---
+
+## Kubernetes Deployment (GKE)
+
+**Prerequisites:** Docker, `gcloud` CLI, `kubectl`, a GCP project with GKE enabled.
+
+### 1. Build and push Docker images
+
+```bash
+# Mac M-chip: must build for linux/amd64
+docker buildx create --name applyiq-builder --use
+
+docker buildx build --platform linux/amd64 --provenance=false \
+  -f Dockerfile.langflow -t <dockerhub-user>/applyiq-langflow:latest --push .
+
+docker buildx build --platform linux/amd64 --provenance=false \
+  -f Dockerfile.streamlit -t <dockerhub-user>/applyiq-streamlit:latest --push .
+```
+
+### 2. Create a GKE Autopilot cluster
+
+```bash
+gcloud container clusters create-auto applyiq-cluster \
+  --region us-central1 --project <gcp-project>
+
+gcloud container clusters get-credentials applyiq-cluster \
+  --region us-central1 --project <gcp-project>
+```
+
+### 3. Create the API key secret
+
+```bash
+kubectl create secret generic applyiq-secret \
+  --from-literal=GOOGLE_API_KEY=<your-gemini-api-key>
+```
+
+### 4. Deploy
+
+```bash
+kubectl apply -f langflow-deployment.yaml
+kubectl apply -f langflow-service.yaml
+kubectl apply -f streamlit-deployment.yaml
+kubectl apply -f streamlit-service.yaml
+```
+
+### 5. Get the external IP
+
+```bash
+kubectl get service streamlit-service
+# Wait for EXTERNAL-IP to populate, then open http://<EXTERNAL-IP>
+```
+
+Langflow runs as an internal ClusterIP service (port 7860). Streamlit is exposed via a LoadBalancer on port 80. The `GOOGLE_API_KEY` is injected into Langflow at startup via the entrypoint script and also set as a pod environment variable so Langflow's Gemini components pick it up automatically.
+
+---
 
 ## Files
 
 | File | Description |
 |---|---|
-| `app.py` | Streamlit frontend — authenticates and calls Langflow REST API |
-| `langflow_flow.json` | Exported Langflow pipeline (15 nodes) |
+| `app.py` | Streamlit frontend — authenticates via JWT and calls Langflow REST API |
+| `langflow_flow.json` | Exported Langflow pipeline (15 nodes, 3 branches) |
 | `requirements.txt` | Python dependencies |
-| `.env.example` | Environment variable template |
+| `Dockerfile.langflow` | Langflow image with flow baked in |
+| `Dockerfile.streamlit` | Streamlit frontend image |
+| `entrypoint.sh` | Langflow startup script — injects GOOGLE_API_KEY as a global variable |
+| `langflow-deployment.yaml` | K8s Deployment for Langflow |
+| `langflow-service.yaml` | K8s ClusterIP Service for Langflow (internal) |
+| `streamlit-deployment.yaml` | K8s Deployment for Streamlit |
+| `streamlit-service.yaml` | K8s LoadBalancer Service for Streamlit (external) |
+| `applyiq-secret.yaml` | K8s Secret template for GOOGLE_API_KEY |
+| `.env.example` | Environment variable template for local dev |

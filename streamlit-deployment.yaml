@@ -1,0 +1,58 @@
+# ── streamlit-deployment.yaml ──────────────────────────────────────────────────
+# Streamlit frontend that calls the internal Langflow service.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamlit-app
+  namespace: default
+  labels:
+    app: streamlit-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: streamlit-app
+  template:
+    metadata:
+      labels:
+        app: streamlit-app
+    spec:
+      containers:
+        - name: streamlit-app
+          image: haixi01/applyiq-streamlit:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8501
+          env:
+            # Points to the internal Langflow ClusterIP service
+            - name: LANGFLOW_BASE_URL
+              value: "http://langflow-service:7860"
+            # Flow ID preserved from langflow_flow.json
+            - name: LANGFLOW_FLOW_ID
+              value: "9dd9a257-0e88-4397-bd19-1a9b51f1f23d"
+            - name: LANGFLOW_USERNAME
+              value: "langflow"
+            - name: LANGFLOW_PASSWORD
+              value: "langflow"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3

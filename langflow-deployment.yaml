@@ -1,0 +1,62 @@
+# ── langflow-deployment.yaml ───────────────────────────────────────────────────
+# Langflow backend with ApplyIQ flow baked in.
+# Internal-only (ClusterIP service); Streamlit calls it at langflow-service:7860.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langflow
+  namespace: default
+  labels:
+    app: langflow
+spec:
+  replicas: 1          # Keep at 1 — Langflow's SQLite DB is not shared across replicas
+  selector:
+    matchLabels:
+      app: langflow
+  template:
+    metadata:
+      labels:
+        app: langflow
+    spec:
+      containers:
+        - name: langflow
+          image: haixi01/applyiq-langflow:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 7860
+          env:
+            - name: LANGFLOW_AUTO_LOGIN
+              value: "true"
+            - name: LANGFLOW_SKIP_AUTH_AUTO_LOGIN
+              value: "true"
+            - name: LANGFLOW_LOAD_FLOWS_PATH
+              value: "/app/flows"
+            - name: LANGFLOW_DO_NOT_TRACK
+              value: "true"
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: applyiq-secret
+                  key: GOOGLE_API_KEY
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "3Gi"
+              cpu: "2000m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 7860
+            initialDelaySeconds: 45   # Langflow takes time to start
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 7860
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            failureThreshold: 3

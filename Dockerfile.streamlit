@@ -1,0 +1,26 @@
+# ── Streamlit frontend image ───────────────────────────────────────────────────
+# Build from project root (same dir as app.py and requirements.txt):
+#   docker buildx build --platform linux/amd64 --provenance=false \
+#     -f Dockerfile.streamlit -t haixi01/applyiq-streamlit:latest --push .
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install deps first (layer cache)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy app
+COPY app.py .
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+
+ENTRYPOINT ["streamlit", "run", "app.py", \
+  "--server.port=8501", \
+  "--server.address=0.0.0.0", \
+  "--server.headless=true", \
+  "--browser.gatherUsageStats=false"]
