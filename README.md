@@ -4,6 +4,28 @@ Paste a resume and a job description → ApplyIQ parses both, researches the com
 
 Built for **14-789 AI in Business Modeling** (CMU, Spring 2026) — Group 7.
 
+---
+
+## Table of Contents
+
+- [Demo Videos](#demo-videos)
+- [Architecture](#architecture)
+- [Local Setup](#local-setup)
+- [Kubernetes Deployment (GKE)](#kubernetes-deployment-gke)
+- [Files](#files)
+
+---
+
+## Demo Videos
+
+| Video | Link |
+|---|---|
+| Task II — Langflow Proof-of-Concept (~5 min) | https://youtu.be/mLL-slC-Jbc |
+| Extra Credit Part 1 — Standalone Streamlit GUI (~2 min) | https://youtu.be/5Y1jWb1rFqY |
+| Extra Credit Part 2 — Kubernetes Deployment (~5 min) | https://youtu.be/maH4x3W98nI |
+
+---
+
 ## Architecture
 
 ```
@@ -54,7 +76,7 @@ LANGFLOW_PASSWORD=langflow
 streamlit run app.py
 ```
 
-Open `http://localhost:8501`, paste a resume and job description, click **Generate Application Package**.
+Open `http://localhost:8501`, paste a resume and job description, click **Generate Package**.
 
 ---
 
@@ -108,7 +130,7 @@ kubectl get service streamlit-service
 # Wait for EXTERNAL-IP to populate, then open http://<EXTERNAL-IP>
 ```
 
-Langflow runs as an internal ClusterIP service (port 7860). Streamlit is exposed via a LoadBalancer on port 80. The `GOOGLE_API_KEY` is injected into Langflow at startup via the entrypoint script and also set as a pod environment variable so Langflow's Gemini components pick it up automatically.
+Langflow runs as an internal ClusterIP service (port 7860). Streamlit is exposed via a LoadBalancer on port 80. The `GOOGLE_API_KEY` is stored as a Kubernetes secret and injected into the Langflow pod at startup.
 
 ---
 
@@ -116,7 +138,7 @@ Langflow runs as an internal ClusterIP service (port 7860). Streamlit is exposed
 
 | File | Description |
 |---|---|
-| `app.py` | Streamlit frontend — authenticates via JWT and calls Langflow REST API |
+| `app.py` | Streamlit frontend — JWT auth, PDF upload, calls Langflow REST API |
 | `langflow_flow.json` | Exported Langflow pipeline (15 nodes, 3 branches) |
 | `requirements.txt` | Python dependencies |
 | `Dockerfile.langflow` | Langflow image with flow baked in |
